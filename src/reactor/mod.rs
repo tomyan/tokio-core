@@ -38,6 +38,37 @@ pub use self::interval::Interval;
 static NEXT_LOOP_ID: AtomicUsize = ATOMIC_USIZE_INIT;
 scoped_thread_local!(static CURRENT_LOOP: Core);
 
+struct CoreAndHandle {
+    core: RefCell<Core>,
+    handle: RefCell<Handle>
+}
+
+thread_local!(static DEFAULT_CORE_AND_HANDLE: CoreAndHandle = {
+    let core = Core::new().unwrap();
+    let handle = core.handle();
+    CoreAndHandle {
+        core: RefCell::new(core),
+        handle: RefCell::new(handle)
+    }
+});
+
+/// Get a mutable reference to the default core.
+pub fn with_default_core<T, F: FnOnce(&mut Core) -> T>(cls: F) -> T {
+    DEFAULT_CORE_AND_HANDLE.with(|o| cls(&mut *o.core.borrow_mut()))
+}
+
+/// Shortcut for runnign the default event loop. Takes a future, which is passed
+/// to Core::run (see docs there).
+pub fn run_default<F>(f: F) -> Result<F::Item, F::Error>
+    where F: Future {
+    with_default_core(|core| core.run(f))
+}
+
+/// Get a handle to the default event loop.
+pub fn default_handle() -> Handle {
+    DEFAULT_CORE_AND_HANDLE.with(|o| o.handle.borrow().clone())
+}
+
 /// An event loop.
 ///
 /// The event loop is the main source of blocking in an application which drives
