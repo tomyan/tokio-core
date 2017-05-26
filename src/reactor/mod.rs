@@ -54,7 +54,11 @@ thread_local!(static DEFAULT_CORE_AND_HANDLE: CoreAndHandle = {
 
 /// Get a mutable reference to the default core.
 pub fn with_default_core<T, F: FnOnce(&mut Core) -> T>(cls: F) -> T {
-    DEFAULT_CORE_AND_HANDLE.with(|o| cls(&mut *o.core.borrow_mut()))
+    DEFAULT_CORE_AND_HANDLE.with(|o|
+        cls(&mut *o.core.try_borrow_mut().expect(
+            "could not borrow default core, already borrowed (event loop running?)"
+        ))
+    )
 }
 
 /// Shortcut for runnign the default event loop. Takes a future, which is passed
